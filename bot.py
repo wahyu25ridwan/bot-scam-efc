@@ -9,11 +9,11 @@ from telegram.ext import (
 )
 
 # ================= CONFIGURATION =================
-# Ganti dengan data bot dan grup kamu masing-masing
-TOKEN = "8780305562:AAHB3vQ_z0OPLbTHJ_dI58RSKchz84co2z4"
-ADMIN_CHAT_ID = 6537343724
-PUBLIC_GROUP_ID = -5326430759
-SAWERIA_URL = "https://saweria.co/Aryouridwan"
+# Mengambil data dari Environment Render/Server atau isi langsung
+TOKEN = os.getenv("TOKEN", "8780305562:AAHB3vQ_z0OPLbTHJ_dI58RSKchz84co2z4")
+ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", -6537343724))   # Sesuaikan ID Grup Admin kamu
+PUBLIC_GROUP_ID = int(os.getenv("PUBLIC_GROUP_ID", -5326430759)) # Sesuaikan ID Grup Publik kamu
+SAWERIA_URL = os.getenv("SAWERIA_URL", "https://saweria.co/Aryouridwan")
 DB_FILE = "database.json"
 # ==================================================
 
@@ -98,7 +98,7 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id=ADMIN_CHAT_ID, 
         text=admin_message, 
         reply_markup=reply_markup,
-        parse_mode="Markdown"
+        parse_mongo="Markdown" if hasattr(context.bot, 'parse_mode') else None
     )
 
     await update.message.reply_text("✅ Laporanmu berhasil dikirim dan sedang menunggu **approval admin**.")
@@ -133,7 +133,7 @@ async def check_scammer(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"✅ **AMAN!**\nTidak ada catatan scam terkait `{query_text}` yang terverifikasi dalam database kami.\n\n"
             "_Tetaplah waspada dan gunakan Rekber terpercaya saat bertransaksi!_",
-            parse_mode="Markdown"
+            parse_Mode="Markdown"
         )
 
 # Handler untuk Tombol Klik Admin (Approve / Reject)
@@ -152,7 +152,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     report_data = db[report_id]
 
     if action == "approve":
-        # Update status di JSON menjadi approved
         report_data["status"] = "approved"
         save_db(db)
 
@@ -168,7 +167,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Edit pesan di grup admin
         await query.edit_message_text(text=f"{query.message.text}\n\n✅ **STATUS: DISETUJUI & DIPUBLISH KE GRUP**")
         
-        # Beritahu pelapor secara pribadi
         try:
             await context.bot.send_message(
                 chat_id=report_data["user_id"], 
@@ -178,14 +176,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     elif action == "reject":
-        # Update status di JSON menjadi rejected
         report_data["status"] = "rejected"
         save_db(db)
 
-        # Edit pesan di grup admin
         await query.edit_message_text(text=f"{query.message.text}\n\n❌ **STATUS: DITOLAK**")
         
-        # Beritahu pelapor secara pribadi
         try:
             await context.bot.send_message(
                 chat_id=report_data["user_id"], 
@@ -195,7 +190,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
 def main():
-    # Inisialisasi Bot dengan Token
+    # Inisialisasi Bot menggunakan ApplicationBuilder (Standar v20+)
     app = ApplicationBuilder().token(TOKEN).build()
 
     # Daftarkan Command & Callback Handlers
