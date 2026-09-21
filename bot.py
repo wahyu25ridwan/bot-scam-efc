@@ -9,15 +9,15 @@ from telegram.ext import (
 )
 
 # ================= CONFIGURATION =================
-# Mengambil data dari Environment Render/Server atau isi langsung
 TOKEN = os.getenv("TOKEN", "8780305562:AAHB3vQ_z0OPLbTHJ_dI58RSKchz84co2z4")
-ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", -6537343724))   # Sesuaikan ID Grup Admin kamu
-PUBLIC_GROUP_ID = int(os.getenv("PUBLIC_GROUP_ID", -5326430759)) # Sesuaikan ID Grup Publik kamu
+ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", 6537343724))   # ID Grup Admin
+PUBLIC_GROUP_ID = int(os.getenv("PUBLIC_GROUP_ID", -5326430759)) # ID Grup Publik
 SAWERIA_URL = os.getenv("SAWERIA_URL", "https://saweria.co/Aryouridwan")
 DB_FILE = "database.json"
+
+REPORT_TEMP = {}
 # ==================================================
 
-# Fungsi untuk Memuat Database dari File JSON
 def load_db():
     if not os.path.exists(DB_FILE):
         return {}
@@ -27,13 +27,16 @@ def load_db():
     except json.JSONDecodeError:
         return {}
 
-# Fungsi untuk Menyimpan Database ke File JSON
 def save_db(data):
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 
-# Perintah /start
+# Perintah /start (Hanya di Grup)
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.chat.type == "private":
+        await update.message.reply_text("❌ Bot ini hanya dapat digunakan di dalam grup!")
+        return
+
     keyboard = [
         [InlineKeyboardButton("☕ Dukung Hosting Bot (Saweria)", url=SAWERIA_URL)]
     ]
@@ -41,70 +44,55 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "👋 **Bot Pelaporan & Pengecekan Scammer (eFootball & CoC)**\n\n"
-        "📌 **Perintah yang tersedia:**\n"
-        "1️⃣ Lapor Scammer:\n"
-        "<code>/report [Game] | [Nama/Tag] | [Kronologi]</code>\n\n"
-        "2️⃣ Cek Keamanan Akun/Tag:\n"
-        "<code>/check [Username / Tag CoC]</code>\n\n"
-        "💡 *Bot ini gratis digunakan. Jika ingin membantu biaya operasional/hosting bot, kamu bisa berdonasi melalui tombol di bawah ini ya! Terima kasih!* 🙏",
+        "📌 **Cara Lapor Scammer:**\n"
+        "Ketik: <code>/report [Nama/Tag] | [Bukti & Kronologi]</code>\n"
+        "*(Contoh: `/report @badguy | Bukti chat: https://ibb.co/xxx Minta DP lalu kabur`)*\n\n"
+        "📌 **Cara Cek Akun:**\n"
+        "Ketik: <code>/check [Username / Tag CoC]</code>",
         parse_mode="HTML",
         reply_markup=reply_markup
     )
 
-# Perintah /report (Melaporkan Scammer)
+# Perintah /report
 async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.chat.type == "private":
+        await update.message.reply_text("❌ Perintah /report hanya bisa dilakukan di dalam grup!")
+        return
+
     user = update.message.from_user
     text_args = " ".join(context.args)
     
     if not text_args:
         await update.message.reply_text(
-            "⚠️ Format salah!\nGunakan format: <code>/report [Game] | [Nama/Tag] | [Kronologi]</code>",
+            "⚠️ Format salah!\nGunakan format: <code>/report [Nama/Tag] | [Bukti & Kronologi]</code>",
             parse_mode="HTML"
         )
         return
 
-    db = load_db()
-    report_id = str(len(db) + 1001)  # ID Unik Laporan (1001, 1002, dst)
+    REPORT_TEMP[user.id] = text_args
 
-    # Simpan ke JSON dengan status pending
-    db[report_id] = {
-        "report_id": report_id,
-        "user_id": user.id,
-        "username": user.username or user.first_name,
-        "content": text_args,
-        "status": "pending"
-    }
-    save_db(db)
-
-    # Format pesan untuk dikirim ke Grup Admin
-    admin_message = (
-        f"🚨 **LAPORAN BARU MASUK (PENDING)** 🚨\n\n"
-        f"ID Laporan: #{report_id}\n"
-        f"Pelapor: @{user.username or user.first_name} (ID: {user.id})\n\n"
-        f"Detail:\n{text_args}"
-    )
-
-    # Tombol Approval Admin
     keyboard = [
         [
-            InlineKeyboardButton("✅ Setujui & Publish", callback_data=f"approve_{report_id}"),
-            InlineKeyboardButton("❌ Tolak", callback_data=f"reject_{report_id}")
+            InlineKeyboardButton("⚽ eFootball", callback_data="game_efootball"),
+            InlineKeyboardButton("🏰 Clash of Clans (CoC)", callback_data="game_coc")
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-# Kirim ke Grup Admin
-    await context.bot.send_message(
-        chat_id=ADMIN_CHAT_ID, 
-        text=admin_message, 
-        reply_markup=reply_markup,
-        parse_mode="Markdown"  # Diperbaiki dari parse_mongo
+    await update.message.reply_text(
+        f"🎮 **Pilih Kategori Game untuk Laporan ini:**\n\n"
+        f"📝 <b>Bukti & Detail:</b> {text_args}\n\n"
+        f"<i>Silakan klik salah satu tombol game di bawah ini:</i>",
+        parse_mode="HTML",
+        reply_markup=reply_markup
     )
 
-    await update.message.reply_text("✅ Laporanmu berhasil dikirim dan sedang menunggu **approval admin**.")
-
-# Perintah /check (Mengecek apakah akun/tag aman)
+# Perintah /check (Memanggil bukti dari database.json)
 async def check_scammer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.chat.type == "private":
+        await update.message.reply_text("❌ Perintah /check hanya bisa dilakukan di dalam grup!")
+        return
+
     query_text = " ".join(context.args).strip()
     
     if not query_text:
@@ -117,7 +105,7 @@ async def check_scammer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db = load_db()
     found_reports = []
 
-    # Cari hanya pada laporan yang statusnya 'approved'
+    # Mencari data yang statusnya sudah 'approved'
     for rid, data in db.items():
         if data["status"] == "approved":
             if query_text.lower() in data["content"].lower():
@@ -126,24 +114,77 @@ async def check_scammer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if found_reports:
         result_msg = f"⚠️ **PERINGATAN! Akun / Tag `{query_text}` DITEMUKAN dalam database Scam!** ⚠️\n\n"
         for rep in found_reports:
-            result_msg += f"• Laporan #{rep['report_id']}:\n{rep['content']}\n\n"
+            result_msg += f"• **Game:** {rep['game']}\n"
+            result_msg += f"• **ID Laporan:** #{rep['report_id']}\n"
+            result_msg += f"• **Bukti & Kronologi:**\n{rep['content']}\n\n"
         result_msg += "❌ *Sangat disarankan untuk TIDAK BERTRANSAKSI dengan akun/tag ini!*"
         await update.message.reply_text(result_msg, parse_mode="Markdown")
     else:
         await update.message.reply_text(
             f"✅ **AMAN!**\nTidak ada catatan scam terkait `{query_text}` yang terverifikasi dalam database kami.\n\n"
             "_Tetaplah waspada dan gunakan Rekber terpercaya saat bertransaksi!_",
-            parse_mode="Markdown"  # Diperbaiki dari parse_Mode (M besar)
+            parse_mode="Markdown"
         )
 
-# Handler untuk Tombol Klik Admin (Approve / Reject)
+# Handler Tombol Klik
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
     data = query.data
-    action, report_id = data.split("_")
-    
+    user = query.from_user
+
+    if data.startswith("game_"):
+        game_name = "eFootball" if data == "game_efootball" else "Clash of Clans (CoC)"
+        
+        if user.id not in REPORT_TEMP:
+            await query.edit_message_text(text="⚠️ Sesi laporan kedaluwarsa. Silakan ketik ulang /report.")
+            return
+
+        text_args = REPORT_TEMP.pop(user.id)
+        db = load_db()
+        report_id = str(len(db) + 1001)
+
+        # Bukti disimpan ke dalam database.json
+        db[report_id] = {
+            "report_id": report_id,
+            "game": game_name,
+            "user_id": user.id,
+            "username": user.username or user.first_name,
+            "content": text_args,
+            "status": "pending"
+        }
+        save_db(db)
+
+        admin_message = (
+            f"🚨 **LAPORAN BARU MASUK (PENDING)** 🚨\n\n"
+            f"🎮 Game: {game_name}\n"
+            f"🆔 ID Laporan: #{report_id}\n"
+            f"👤 Pelapor: @{user.username or user.first_name}\n\n"
+            f"📄 **Bukti & Detail:**\n{text_args}"
+        )
+
+        keyboard = [
+            [
+                InlineKeyboardButton("✅ Setujui & Publish", callback_data=f"approve_{report_id}"),
+                InlineKeyboardButton("❌ Tolak", callback_data=f"reject_{report_id}")
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await context.bot.send_message(
+            chat_id=ADMIN_CHAT_ID, 
+            text=admin_message, 
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+
+        await query.edit_message_text(
+            text=f"✅ Laporan **{game_name}** kamu (#{report_id}) berhasil dikirim dan menunggu **approval admin**."
+        )
+        return
+
+    action, report_id = data.split("_", 1)
     db = load_db()
     if report_id not in db:
         await query.edit_message_text(text="⚠️ Data laporan tidak ditemukan di database.")
@@ -155,22 +196,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         report_data["status"] = "approved"
         save_db(db)
 
-        # Publish ke Grup Publik
+        # Publish ke Grup Publik beserta bukti penipuannya
         await context.bot.send_message(
             chat_id=PUBLIC_GROUP_ID,
             text=f"⚠️ **DAFTAR SCAMMER TERVERIFIKASI** ⚠️\n\n"
-                 f"Pelapor: @{report_data['username']}\n"
-                 f"Detail:\n{report_data['content']}",
+                 f"🎮 **Game:** {report_data['game']}\n"
+                 f"👤 **Pelapor:** @{report_data['username']}\n\n"
+                 f"📄 **Bukti & Detail:**\n{report_data['content']}",
             parse_mode="Markdown"
         )
         
-        # Edit pesan di grup admin
-        await query.edit_message_text(text=f"{query.message.text}\n\n✅ **STATUS: DISETUJUI & DIPUBLISH KE GRUP**")
+        await query.edit_message_text(text=f"{query.message.text}\n\n✅ **STATUS: DISETUJUI & DIPUBLISH**")
         
         try:
             await context.bot.send_message(
                 chat_id=report_data["user_id"], 
-                text=f"🎉 Laporan kamu (#{report_id}) telah **disetujui** dan dipublikasikan oleh admin."
+                text=f"🎉 Laporan kamu (#{report_id}) telah **disetujui** dan dipublikasikan."
             )
         except Exception:
             pass
@@ -190,10 +231,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
 def main():
-    # Inisialisasi Bot menggunakan ApplicationBuilder (Standar v20+)
     app = ApplicationBuilder().token(TOKEN).build()
 
-    # Daftarkan Command & Callback Handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("report", report))
     app.add_handler(CommandHandler("check", check_scammer))
