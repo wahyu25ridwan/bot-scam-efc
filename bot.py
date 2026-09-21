@@ -93,12 +93,12 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # Kirim ke Grup Admin
+# Kirim ke Grup Admin
     await context.bot.send_message(
         chat_id=ADMIN_CHAT_ID, 
         text=admin_message, 
         reply_markup=reply_markup,
-        parse_mongo="Markdown" if hasattr(context.bot, 'parse_mode') else None
+        parse_mode="Markdown"  # Diperbaiki dari parse_mongo
     )
 
     await update.message.reply_text("✅ Laporanmu berhasil dikirim dan sedang menunggu **approval admin**.")
@@ -133,7 +133,7 @@ async def check_scammer(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"✅ **AMAN!**\nTidak ada catatan scam terkait `{query_text}` yang terverifikasi dalam database kami.\n\n"
             "_Tetaplah waspada dan gunakan Rekber terpercaya saat bertransaksi!_",
-            parse_Mode="Markdown"
+            parse_mode="Markdown"  # Diperbaiki dari parse_Mode (M besar)
         )
 
 # Handler untuk Tombol Klik Admin (Approve / Reject)
