@@ -1,5 +1,7 @@
 import json
 import os
+import threading
+from flask import Flask
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     ApplicationBuilder,
@@ -15,6 +17,18 @@ PUBLIC_GROUP_ID = int(os.getenv("PUBLIC_GROUP_ID", 0)) # ID Grup Publik
 SAWERIA_URL = os.getenv("SAWERIA_URL", "https://saweria.co/Aryouridwan")
 DB_FILE = "database.json"
 # ==================================================
+
+# 1. Bikin Web Server Mini (Flask) untuk Membuka Port Render secara Gratis
+web_app = Flask(__name__)
+
+@web_app.route('/')
+def home():
+    return "🤖 Telegram Bot is running smoothly!"
+
+def run_web():
+    port = int(os.getenv("PORT", 10000))
+    web_app.run(host="0.0.0.0", port=port)
+
 
 def load_db():
     if not os.path.exists(DB_FILE):
@@ -51,7 +65,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-# Perintah /report (Mendukung Teks dan Foto/Screenshot)
+# Perintah /report (Mendukung Teks dan Foto/Screenshot dengan pemisah koma)
 async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.chat.type == "private":
         await update.message.reply_text("❌ Perintah /report hanya bisa dilakukan di dalam grup!")
@@ -60,7 +74,6 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
     user = message.from_user
     
-    # Ambil caption jika mengirim foto, atau ambil argumen teks jika mengetik biasa
     caption_text = message.caption if message.photo else " ".join(context.args)
 
     if not caption_text:
@@ -76,7 +89,6 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db = load_db()
     report_id = str(len(db) + 1001)
 
-    # Simpan ke JSON dengan status "waiting_game" agar aman dari kedaluwarsa
     db[report_id] = {
         "report_id": report_id,
         "user_id": user.id,
@@ -87,7 +99,6 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
     save_db(db)
 
-    # Tombol Pilihan Game
     keyboard = [
         [
             InlineKeyboardButton("⚽ eFootball", callback_data=f"game_efootball_{report_id}"),
@@ -105,7 +116,7 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-# Perintah /check (Memanggil database dan bukti foto)
+# Perintah /check
 async def check_scammer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.chat.type == "private":
         await update.message.reply_text("❌ Perintah /check hanya bisa dilakukan di dalam grup!")
@@ -145,10 +156,10 @@ async def check_scammer(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"✅ **AMAN!**\nTidak ada catatan scam terkait `{query_text}` yang terverifikasi dalam database kami.\n\n"
             "_Tetaplah waspada dan gunakan Rekber terpercaya saat bertransaksi!_",
-            parse_mode="Markdown"
+            parse_Mode="Markdown"
         )
 
-# Handler Tombol Klik (Pilihan Game & Admin Approval)
+# Handler Tombol Klik
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -156,7 +167,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     db = load_db()
 
-    # 1. Pilihan Game oleh Pelapor
     if data.startswith("game_"):
         parts = data.split("_")
         game_type = parts[1]
@@ -210,7 +220,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # 2. Keputusan Admin (Approve / Reject)
     action, report_id = data.split("_", 1)
     if report_id not in db:
         await query.edit_message_text(text="⚠️ Data laporan tidak ditemukan di database.")
@@ -268,6 +277,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
 def main():
+    # Jalankan Flask Web Server di background thread agar port terdeteksi oleh Render (Gratis)
+    threading.Thread(target=run_web, daemon=True).start()
+
+    # Jalankan Bot Telegram
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
@@ -275,8 +288,7 @@ def main():
     app.add_handler(CommandHandler("check", check_scammer))
     app.add_handler(CallbackQueryHandler(button_handler))
 
-    print("🤖 Bot Telegram berhasil dijalankan...")
-    # drop_prevent=True / drop_pending_updates=True mencegah konflik getUpdates vs webhook aktif
+    print("🤖 Bot Telegram & Web Server berhasil dijalankan...")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
