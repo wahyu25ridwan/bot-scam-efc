@@ -9,9 +9,9 @@ from telegram.ext import (
 )
 
 # ================= CONFIGURATION =================
-TOKEN = os.getenv("TOKEN", "8780305562:AAFEFRL_c1QFUV7aOw2lZazFc1kdSdfXI8s")
-ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", 6537343724))   # ID Grup Admin
-PUBLIC_GROUP_ID = int(os.getenv("PUBLIC_GROUP_ID", -5326430759)) # ID Grup Publik
+TOKEN = os.getenv("TOKEN", "")
+ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", ))   # ID Grup Admin
+PUBLIC_GROUP_ID = int(os.getenv("PUBLIC_GROUP_ID", )) # ID Grup Publik
 SAWERIA_URL = os.getenv("SAWERIA_URL", "https://saweria.co/Aryouridwan")
 DB_FILE = "database.json"
 # ==================================================
