@@ -10,8 +10,8 @@ from telegram.ext import (
 
 # ================= CONFIGURATION =================
 TOKEN = os.getenv("TOKEN", "")
-ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", ))   # ID Grup Admin
-PUBLIC_GROUP_ID = int(os.getenv("PUBLIC_GROUP_ID", )) # ID Grup Publik
+ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", 0))    # ID Grup Admin
+PUBLIC_GROUP_ID = int(os.getenv("PUBLIC_GROUP_ID", 0)) # ID Grup Publik
 SAWERIA_URL = os.getenv("SAWERIA_URL", "https://saweria.co/Aryouridwan")
 DB_FILE = "database.json"
 # ==================================================
@@ -44,7 +44,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "👋 **Bot Pelaporan & Pengecekan Scammer (eFootball & CoC)**\n\n"
         "📌 **Cara Lapor Scammer:**\n"
         "Kirim foto screenshot bukti dengan *caption* atau ketik:\n"
-        "<code>/report [Nama/Tag] | [Kronologi singkat]</code>\n\n"
+        "<code>/report [Nama/Tag], [Kronologi singkat]</code>\n\n"
         "📌 **Cara Cek Akun:**\n"
         "Ketik: <code>/check [Username / Tag CoC]</code>",
         parse_mode="HTML",
@@ -65,7 +65,7 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not caption_text:
         await message.reply_text(
-            "⚠️ Format salah!\nGunakan format: <code>/report [Nama/Tag] | [Kronologi]</code>\n"
+            "⚠️ Format salah!\nGunakan format: <code>/report [Nama/Tag], [Kronologi]</code>\n"
             "(Atau sertakan *caption* tersebut jika mengirim screenshot).",
             parse_mode="HTML"
         )
@@ -276,7 +276,8 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
 
     print("🤖 Bot Telegram berhasil dijalankan...")
-    app.run_polling()
+    # drop_prevent=True / drop_pending_updates=True mencegah konflik getUpdates vs webhook aktif
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
